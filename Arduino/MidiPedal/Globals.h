@@ -112,7 +112,7 @@ constexpr int kPinExtControl[kExtControlCount] = { PA0, PA1, PA2, PA3 };
 constexpr int kPinExtSense[kExtControlCount] = { PB12, PB13, PB14, PB15 };
 
 inline Colour kMidiStatusColors[kMidiStatusCount] = {
-  { 191, 0, 0 },
+  { 191, 0, 7 },
   { 95, 95, 95 },
   { 0, 127, 0 },
   { 127, 0, 255 },
@@ -131,6 +131,7 @@ inline Colour leds[kLedCount] = {
   { 0, 0, 0 },
 };
 
+inline USBCompositeSerial CompositeSerial;
 inline MidiController midi;
 inline bool midiConnected = false;
 inline UsbMidiStatus midiStatus = kMidiDisconnected;

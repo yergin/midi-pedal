@@ -7,6 +7,18 @@ void handleProgramChange(unsigned int channel, unsigned int program) {
   CompositeSerial.write(s.c_str());
 }
 
+void handleSysExData(unsigned char data) {
+  setMidiStatus(kMidiReceiving);
+  String s = String() + "Received SysEx byte: 0x" + String(data, 16) + "\n";
+  CompositeSerial.write(s.c_str());
+}
+
+void handleSysExEnd() {
+  setMidiStatus(kMidiReceiving);
+  String s = String() + "End of SysEx\n";
+  CompositeSerial.write(s.c_str());
+}
+
 void setupExtControllers() {
   for (int i = 0; i < kExtControlCount; i++) {
     auto& conf = extConfig[i];
@@ -40,6 +52,7 @@ void setupUsb() {
   USBComposite.setProductId(0xf754);
   midi.registerComponent();
   midi.setProgramChangeCallback(handleProgramChange);
+  midi.setSysExCallbacks(handleSysExData, handleSysExEnd);
   CompositeSerial.registerComponent();
   USBComposite.begin();
   delay(2000);
@@ -203,11 +216,11 @@ void updateControllerLeds() {
     if (extSensors[i].down()) {
       if (extControlMapped(i)) {
         if (!extControlMappedCorrectly(i)) {
-          leds[kLedExtControlMap[i]] = { 111, 0, 63 };
+          leds[kLedExtControlMap[i]] = { 127, 0, 95 };
         }
       }
       else {
-        leds[kLedExtControlMap[i]] = { 127, 0, 0 };
+        leds[kLedExtControlMap[i]] = { 191, 0, 7 };
       }
     }
     else {

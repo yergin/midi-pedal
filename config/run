@@ -1,0 +1,4 @@
+#!/bin/bash
+
+python -m http.server 63316 &
+open http://localhost:63316/
