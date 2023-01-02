@@ -6,6 +6,8 @@
 #include <EEPROM.h>
 #include <Yabl.h>
 
+//#define USB_SERIAL_LOGGING 1
+
 
 enum UsbMidiStatus {
   kMidiDisconnected,
@@ -131,7 +133,10 @@ inline Colour leds[kLedCount] = {
   { 0, 0, 0 },
 };
 
+#if USB_SERIAL_LOGGING
 inline USBCompositeSerial CompositeSerial;
+#endif
+
 inline MidiController midi;
 inline bool midiConnected = false;
 inline UsbMidiStatus midiStatus = kMidiDisconnected;

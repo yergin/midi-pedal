@@ -3,27 +3,33 @@
 
 void handleProgramChange(unsigned int channel, unsigned int program) {
   setMidiStatus(kMidiReceiving);
+#if USB_SERIAL_LOGGING
   String s = String() + "Received Program Change " + String(program) + " [Ch:" + String(channel + 1) + "]\n";
   CompositeSerial.write(s.c_str());
+#endif
 }
 
 void handleSysExData(unsigned char data) {
   setMidiStatus(kMidiReceiving);
+#if USB_SERIAL_LOGGING
   String s = String() + "Received SysEx byte: 0x" + String(data, 16) + "\n";
   CompositeSerial.write(s.c_str());
+#endif
 }
 
 void handleSysExEnd() {
   setMidiStatus(kMidiReceiving);
+#if USB_SERIAL_LOGGING
   String s = String() + "End of SysEx\n";
   CompositeSerial.write(s.c_str());
+#endif
 }
 
 void setupExtControllers() {
   for (int i = 0; i < kExtControlCount; i++) {
     auto& conf = extConfig[i];
     if (conf.isSwitch) {
-      extSwitch[i].attach(kPinExtSense[i], INPUT_PULLUP);
+      extSwitch[i].attach(kPinExtControl[i], INPUT_PULLUP);
       extSwitch[i].inverted(conf.inverted);
     }
     else {
@@ -40,7 +46,13 @@ void loadExtConfig() {
     .rawMin = 0,
     .rawMax = 1320,
   };
-  extConfig[3] = extConfig[2] = extConfig[1] = extConfig[0];
+  extConfig[2] = extConfig[1] = extConfig[0];
+  extConfig[3] = {
+    .isSwitch = true,
+    .inverted = true,
+    .rawMin = 0,
+    .rawMax = 1320,
+  };
   setupExtControllers();
 }
 
@@ -53,10 +65,14 @@ void setupUsb() {
   midi.registerComponent();
   midi.setProgramChangeCallback(handleProgramChange);
   midi.setSysExCallbacks(handleSysExData, handleSysExEnd);
+#if USB_SERIAL_LOGGING
   CompositeSerial.registerComponent();
+#endif
   USBComposite.begin();
+#if USB_SERIAL_LOGGING
   delay(2000);
   CompositeSerial.write("Footsy by Tranzistor Bandicoot\n");
+#endif
 }
 
 void setupIoPins() {
@@ -69,7 +85,6 @@ void setupIoPins() {
     footSwitches[i].enableHold(false);
   }
   for (int i = 0; i < kExtControlCount; i++) {
-    auto& conf = extConfig[i];
     extSensors[i].attach(kPinExtSense[i], INPUT_PULLDOWN);
     extSensors[i].enableDoubleTap(false);
     extSensors[i].enableHold(false);
@@ -79,8 +94,10 @@ void setupIoPins() {
 void sendController(const ControllerState& state) {
   setMidiStatus(kMidiSending);
   midi.sendControlChange(state.ch, state.cc, state.val);
+#if USB_SERIAL_LOGGING
   String s = String() + "Ch:" + String(state.ch + 1) + " CC:" + String(state.cc) + " Val:" + state.val + "\n";
   CompositeSerial.write(s.c_str());
+#endif
 }
 
 void sendMidiControllers() {
@@ -146,16 +163,18 @@ void initialiseControllers() {
 }
 
 void loadPatch(int program) {
+#if USB_SERIAL_LOGGING
   String s = String() + "Loading patch for program " + String(program) + "\n";
   CompositeSerial.write(s.c_str());
+#endif
   patch.program = 0;
   patch.footSwitchMapping[0] = { kMappingSwitchToggle, 0, 80, 0, 2 };
-  patch.footSwitchMapping[1] = { kMappingSwitchZoneUpCycle, 0, 81, 0, 4 };
-  patch.footSwitchMapping[2] = { kMappingSwitchMomentary, 0, 82, 0, 2 };
+  patch.footSwitchMapping[1] = { kMappingSwitchToggle, 0, 81, 0, 2 };
+  patch.footSwitchMapping[2] = { kMappingSwitchToggle, 0, 82, 0, 2 };
   patch.extControlMapping[0] = { kMappingAnalog, 0, 11, 0, 2 };
-  patch.extControlMapping[1] = { kMappingSwitchToggle, 0, 16, 0, 2 };
-  patch.extControlMapping[2] = { kMappingNone, 0, 17, 0, 2 };
-  patch.extControlMapping[3] = { kMappingNone, 0, 18, 0, 2 };
+  patch.extControlMapping[1] = { kMappingAnalog, 0, 16, 0, 2 };
+  patch.extControlMapping[2] = { kMappingAnalog, 0, 17, 0, 2 };
+  patch.extControlMapping[3] = { kMappingSwitchToggle, 0, 83, 0, 2 };
   initialiseControllers();
 }
 
@@ -420,8 +439,10 @@ void setExtControlEnabled(int index, bool enabled) {
 void updateExtControl(int index) {
   extSensors[index].update();
   if (extSensors[index].rose() || extSensors[index].fell()) {
+#if USB_SERIAL_LOGGING
     String s = String() + "External Pedal #" + String(index + 1) + " " + (extSensors[index].pressed() ? "plugged\n" :  "unplugged\n");
     CompositeSerial.write(s.c_str());
+#endif
     setExtControlEnabled(index, extSensors[index].pressed());
   }
   if (extSensors[index].down()) {
@@ -454,7 +475,9 @@ void setMidiConnected(bool connected) {
   }
   midiConnected = connected;
   if (midiConnected) {
+#if USB_SERIAL_LOGGING
     CompositeSerial.write("USB MIDI Connected.\n");
+#endif
     sendMidiControllers();
   }
 }
