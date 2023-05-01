@@ -100,19 +100,25 @@ HardwareSerial* serial(const ControllerState& state)
   return nullptr;
 }
 
-void sendController(const ControllerState& state) {
-  setMidiStatus(kMidiSending);
-  auto ser = serial(state);
+void sendControlChange(HardwareSerial* ser, int ch, int cc, int val)
+{
   if (!ser)
   {
-    midi.sendControlChange(state.control.ch, state.control.cc, state.val);
+    midi.sendControlChange(ch, cc, val);
   }
   else
   {
-    ser->write(0xB0 + state.control.ch);
-    ser->write(state.control.cc);
-    ser->write(state.val);
+    ser->write(0xB0 + ch);
+    ser->write(cc);
+    ser->write(val);    
   }
+}
+
+void sendController(const ControllerState& state)
+{
+  setMidiStatus(kMidiSending);
+  auto ser = serial(state);
+  sendControlChange(ser, state.control.ch, state.control.cc, state.val);
 #if USB_SERIAL_LOGGING
   String s = String() + "Ch:" + String(state.ch + 1) + " CC:" + String(state.cc) + " Val:" + state.val + "\n";
   CompositeSerial.write(s.c_str());
