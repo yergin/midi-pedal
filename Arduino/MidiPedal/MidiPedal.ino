@@ -92,7 +92,7 @@ void setupIoPins() {
 
 HardwareSerial* serial(const ControllerState& state)
 {
-  switch (state.port)
+  switch (state.control.port)
   {
     case 1: return &Serial1;
     case 2: return &Serial3;
@@ -105,12 +105,12 @@ void sendController(const ControllerState& state) {
   auto ser = serial(state);
   if (!ser)
   {
-    midi.sendControlChange(state.ch, state.cc, state.val);
+    midi.sendControlChange(state.control.ch, state.control.cc, state.val);
   }
   else
   {
-    ser->write(0xB0 + state.ch);
-    ser->write(state.cc);
+    ser->write(0xB0 + state.control.ch);
+    ser->write(state.control.cc);
     ser->write(state.val);
   }
 #if USB_SERIAL_LOGGING
@@ -129,23 +129,26 @@ void clearControllers() {
   controllerCount = 0;
 }
 
-ControllerState* controllerState(int port, int cc) {
-  for (int i = 0; i < controllerCount; i++) {
-    if (controllers[i].port == port && controllers[i].cc == cc) {
+ControllerState* controllerState(const Control& control)
+{
+  for (int i = 0; i < controllerCount; i++)
+  {
+    if (controlsMatch(controllers[i].control, control))
+    {
       return controllers + i;
     }
   }
   return nullptr;
 }
 
-ControllerState* addController(const Mapping& mapping) {
-  if (controllerState(mapping.port, mapping.controller)) {
+ControllerState* addController(const Mapping& mapping)
+{
+  if (controllerState(mapping.control))
+  {
     return nullptr;
   }
   controllers[controllerCount] = {
-    .port = mapping.port,
-    .ch = mapping.channel,
-    .cc = mapping.controller,
+    .control = mapping.control,
     .val = mapping.initialValue,
   };
   return &controllers[controllerCount++];
@@ -188,18 +191,24 @@ void loadPatch(int program) {
   CompositeSerial.write(s.c_str());
 #endif
   patch.program = 0;
-  patch.footSwitchMapping[0] = { kMappingSwitchToggle, 0, 0, 80, 85, 85, 127, 2 };
-  patch.footSwitchMapping[1] = { kMappingSwitchToggle, 1, 0, 19, 85, 85, 127, 2 };
-  patch.footSwitchMapping[2] = { kMappingSwitchToggle, 2, 0, 19, 0, 0, 127, 2 };
-  patch.extControlMapping[0] = { kMappingAnalog, 0, 0, 11, 0, 0, 127, 2 };
-  patch.extControlMapping[1] = { kMappingAnalog, 1, 0, 16, 0, 0, 127, 2 };
-  patch.extControlMapping[2] = { kMappingAnalog, 1, 0, 48, 0, 0, 127, 2 };
-  patch.extControlMapping[3] = { kMappingSwitchToggle, 0, 0, 83, 0, 0, 127, 2 };
+  patch.footSwitchMapping[0] = {{0, 0, 0, 80}, 85, 85, 127, 2, kMappingSwitchToggle};
+  patch.footSwitchMapping[1] = {{1, 0, 0, 19}, 85, 85, 127, 2, kMappingSwitchToggle};
+  patch.footSwitchMapping[2] = {{2, 0, 0, 19}, 0, 0, 127, 2, kMappingSwitchToggle};
+  patch.extControlMapping[0] = {{0, 0, 0, 11}, 0, 0, 127, 2, kMappingAnalog};
+  patch.extControlMapping[1] = {{1, 0, 0, 16}, 0, 0, 127, 2, kMappingAnalog};
+  patch.extControlMapping[2] = {{1, 0, 0, 48}, 0, 0, 127, 2, kMappingAnalog};
+  patch.extControlMapping[3] = {{0, 0, 0, 83}, 0, 0, 127, 2, kMappingSwitchToggle};
   initialiseControllers();
 }
 
+bool controlsMatch(const Control& c1, const Control& c2)
+{
+  return c1.port == c2.port && c1.cc == c2.cc && c1.ch == c2.ch && c1.alt == c2.alt;
+}
+
 void updateControllerLed(Mapping& mapping, ControllerState& state, Colour& led) {
-  if (mapping.port != state.port || mapping.controller != state.cc) {
+  if (!controlsMatch(mapping.control, state.control))
+  {
     return;
   }
   auto val = state.val;
@@ -334,7 +343,7 @@ void updateButtonControllerValue(Mapping& mapping, bool down) {
   if (mapping.mode == kMappingNone) {
     return;
   }
-  auto& state = *controllerState(mapping.port, mapping.controller);
+  auto& state = *controllerState(mapping.control);
   if (mapping.mode == kMappingSwitchMomentary) {
     state.val = down ? mapping.maxValue : mapping.minValue;
     sendController(state);
@@ -415,7 +424,7 @@ void updateAnalogControllerValue(Mapping& mapping, int value) {
   if (mapping.mode != kMappingAnalog) {
     return;
   }
-  auto& state = *controllerState(mapping.port, mapping.controller);
+  auto& state = *controllerState(mapping.control);
   state.val = value;
   sendController(state);
 }

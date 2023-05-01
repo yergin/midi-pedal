@@ -66,15 +66,22 @@ enum MappingMode : uint8_t {
   kMappingSwitchZoneReset,
 };
 
-struct Mapping {
-  MappingMode mode;
+struct Control
+{
   int8_t port : 4;
-  int8_t channel : 4;
-  int8_t controller;
-  int8_t initialValue;
-  int8_t minValue;
-  int8_t maxValue;
+  int8_t ch : 4;
+  int8_t alt : 1;
+  int8_t cc : 7;
+} __packed;
+
+struct Mapping
+{
+  Control control;
+  int16_t initialValue;
+  int16_t minValue;
+  int16_t maxValue;
   int8_t zoneCount;
+  MappingMode mode;
 } __packed;
 
 struct Patch {
@@ -84,10 +91,8 @@ struct Patch {
 } __packed;
 
 struct ControllerState {
-  int8_t port : 4;
-  int8_t ch : 4;
-  int8_t cc;
-  int8_t val;
+  Control control;
+  int16_t val;
 } __packed;
 
 struct Colour {
