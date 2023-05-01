@@ -68,9 +68,12 @@ enum MappingMode : uint8_t {
 
 struct Mapping {
   MappingMode mode;
-  int8_t channel;
+  int8_t port : 4;
+  int8_t channel : 4;
   int8_t controller;
   int8_t initialValue;
+  int8_t minValue;
+  int8_t maxValue;
   int8_t zoneCount;
 } __packed;
 
@@ -81,7 +84,8 @@ struct Patch {
 } __packed;
 
 struct ControllerState {
-  int8_t ch;
+  int8_t port : 4;
+  int8_t ch : 4;
   int8_t cc;
   int8_t val;
 } __packed;

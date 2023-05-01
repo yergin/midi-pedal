@@ -1,6 +1,5 @@
 #include "Globals.h"
 
-
 void handleProgramChange(unsigned int channel, unsigned int program) {
   setMidiStatus(kMidiReceiving);
 #if USB_SERIAL_LOGGING
@@ -91,9 +90,29 @@ void setupIoPins() {
   }
 }
 
+HardwareSerial* serial(const ControllerState& state)
+{
+  switch (state.port)
+  {
+    case 1: return &Serial1;
+    case 2: return &Serial3;
+  }
+  return nullptr;
+}
+
 void sendController(const ControllerState& state) {
   setMidiStatus(kMidiSending);
-  midi.sendControlChange(state.ch, state.cc, state.val);
+  auto ser = serial(state);
+  if (!ser)
+  {
+    midi.sendControlChange(state.ch, state.cc, state.val);
+  }
+  else
+  {
+    ser->write(0xB0 + state.ch);
+    ser->write(state.cc);
+    ser->write(state.val);
+  }
 #if USB_SERIAL_LOGGING
   String s = String() + "Ch:" + String(state.ch + 1) + " CC:" + String(state.cc) + " Val:" + state.val + "\n";
   CompositeSerial.write(s.c_str());
@@ -110,9 +129,9 @@ void clearControllers() {
   controllerCount = 0;
 }
 
-ControllerState* controllerState(int cc) {
+ControllerState* controllerState(int port, int cc) {
   for (int i = 0; i < controllerCount; i++) {
-    if (controllers[i].cc == cc) {
+    if (controllers[i].port == port && controllers[i].cc == cc) {
       return controllers + i;
     }
   }
@@ -120,10 +139,11 @@ ControllerState* controllerState(int cc) {
 }
 
 ControllerState* addController(const Mapping& mapping) {
-  if (controllerState(mapping.controller)) {
+  if (controllerState(mapping.port, mapping.controller)) {
     return nullptr;
   }
   controllers[controllerCount] = {
+    .port = mapping.port,
     .ch = mapping.channel,
     .cc = mapping.controller,
     .val = mapping.initialValue,
@@ -168,40 +188,32 @@ void loadPatch(int program) {
   CompositeSerial.write(s.c_str());
 #endif
   patch.program = 0;
-  patch.footSwitchMapping[0] = { kMappingSwitchToggle, 0, 80, 0, 2 };
-  patch.footSwitchMapping[1] = { kMappingSwitchToggle, 0, 81, 0, 2 };
-  patch.footSwitchMapping[2] = { kMappingSwitchToggle, 0, 82, 0, 2 };
-  patch.extControlMapping[0] = { kMappingAnalog, 0, 11, 0, 2 };
-  patch.extControlMapping[1] = { kMappingAnalog, 0, 16, 0, 2 };
-  patch.extControlMapping[2] = { kMappingAnalog, 0, 17, 0, 2 };
-  patch.extControlMapping[3] = { kMappingSwitchToggle, 0, 83, 0, 2 };
+  patch.footSwitchMapping[0] = { kMappingSwitchToggle, 0, 0, 80, 85, 85, 127, 2 };
+  patch.footSwitchMapping[1] = { kMappingSwitchToggle, 1, 0, 19, 85, 85, 127, 2 };
+  patch.footSwitchMapping[2] = { kMappingSwitchToggle, 2, 0, 19, 0, 0, 127, 2 };
+  patch.extControlMapping[0] = { kMappingAnalog, 0, 0, 11, 0, 0, 127, 2 };
+  patch.extControlMapping[1] = { kMappingAnalog, 1, 0, 16, 0, 0, 127, 2 };
+  patch.extControlMapping[2] = { kMappingAnalog, 1, 0, 48, 0, 0, 127, 2 };
+  patch.extControlMapping[3] = { kMappingSwitchToggle, 0, 0, 83, 0, 0, 127, 2 };
   initialiseControllers();
 }
 
 void updateControllerLed(Mapping& mapping, ControllerState& state, Colour& led) {
-  if (mapping.controller != state.cc) {
+  if (mapping.port != state.port || mapping.controller != state.cc) {
     return;
   }
   auto val = state.val;
   switch (mapping.mode) {
-    case kMappingNone:
-      break;
-    case kMappingSwitchToggle:
-    case kMappingSwitchMomentary:
-      if (val < 64) {
-        led = { 0, 95, 127 };
-      }
-      else {
-        led = { 191, 64, 0 };
-      }
-      break;
     case kMappingSwitchZoneUp:
     case kMappingSwitchZoneDown:
     case kMappingSwitchZoneUpCycle:
     case kMappingSwitchZoneDownCycle:
     case kMappingSwitchZoneReset:
-      val = valueForZone(zoneForValue(val, mapping.zoneCount), mapping.zoneCount);
+      val = valueForZone(zoneForValue(val, mapping.zoneCount, mapping.minValue, mapping.maxValue), mapping.zoneCount, mapping.minValue, mapping.maxValue);
+    case kMappingNone:
     case kMappingAnalog:
+    case kMappingSwitchToggle:
+    case kMappingSwitchMomentary:
     case kMappingSwitchUp:
     case kMappingSwitchDown:
     case kMappingSwitchReset:
@@ -284,6 +296,8 @@ void displayLeds() {
 }
 
 void setup() {
+  Serial1.begin(31250);
+  Serial3.begin(31250);
   setupUsb();
   setupIoPins();
   loadExtConfig();
@@ -302,27 +316,27 @@ void updateMidiStatus() {
   leds[kLedStatus] = kMidiStatusColors[midiStatus];
 }
 
-int8_t zoneForValue(int value, int count) {
+int8_t zoneForValue(int value, int count, int minValue, int maxValue) {
   if (count < 2) {
     return 0;
   }
-  return (int8_t)min(value * count / 128, count - 1);
+  return (int8_t)min(max(0, (value - minValue) * count / (maxValue - minValue + 1)), count - 1);
 }
 
-int8_t valueForZone(int zone, int count) {
+int8_t valueForZone(int zone, int count, int minValue, int maxValue) {
   if (count < 2) {
-    return 0;
+    return minValue;
   }
-  return (int8_t)min(zone * 128 / (count - 1), 127);
+  return (int8_t)min(max(minValue, zone * (maxValue - minValue + 1) / (count - 1) + minValue), maxValue);
 }
 
 void updateButtonControllerValue(Mapping& mapping, bool down) {
   if (mapping.mode == kMappingNone) {
     return;
   }
-  auto& state = *controllerState(mapping.controller);
+  auto& state = *controllerState(mapping.port, mapping.controller);
   if (mapping.mode == kMappingSwitchMomentary) {
-    state.val = down ? 127 : 0;
+    state.val = down ? mapping.maxValue : mapping.minValue;
     sendController(state);
     return;
   }
@@ -335,16 +349,16 @@ void updateButtonControllerValue(Mapping& mapping, bool down) {
     case kMappingSwitchMomentary:
       return;
     case kMappingSwitchToggle:
-      state.val = state.val >= 64 ? 0 : 127;
+      state.val = state.val >= ((int)mapping.minValue + (int)mapping.maxValue) / 2 ? mapping.minValue : mapping.maxValue;
       break;
     case kMappingSwitchUp:
-      if (state.val == 127) {
+      if (state.val >= mapping.maxValue) {
         return;
       }
       state.val++;
       break;
     case kMappingSwitchDown:
-      if (state.val == 0) {
+      if (state.val <= mapping.minValue) {
         return;
       }
       state.val--;
@@ -357,37 +371,37 @@ void updateButtonControllerValue(Mapping& mapping, bool down) {
       break;
     case kMappingSwitchZoneUp:
       {
-        auto zone = zoneForValue(state.val, mapping.zoneCount);
+        auto zone = zoneForValue(state.val, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         if (zone == mapping.zoneCount - 1) {
           return;
         }
-        state.val = valueForZone(zone + 1, mapping.zoneCount);
+        state.val = valueForZone(zone + 1, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         break;
       }
     case kMappingSwitchZoneDown:
       {
-        auto zone = zoneForValue(state.val, mapping.zoneCount);
+        auto zone = zoneForValue(state.val, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         if (zone == 0) {
           return;
         }
-        state.val = valueForZone(zone - 1, mapping.zoneCount);
+        state.val = valueForZone(zone - 1, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         break;
       }
     case kMappingSwitchZoneUpCycle:
       {
-        auto zone = zoneForValue(state.val, mapping.zoneCount);
-        state.val = valueForZone((zone + 1) % mapping.zoneCount, mapping.zoneCount);
+        auto zone = zoneForValue(state.val, mapping.zoneCount, mapping.minValue, mapping.maxValue);
+        state.val = valueForZone((zone + 1) % mapping.zoneCount, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         break;
       }
     case kMappingSwitchZoneDownCycle:
       {
-        auto zone = zoneForValue(state.val, mapping.zoneCount);
-        state.val = valueForZone((zone + mapping.zoneCount - 1) % mapping.zoneCount, mapping.zoneCount);
+        auto zone = zoneForValue(state.val, mapping.zoneCount, mapping.minValue, mapping.maxValue);
+        state.val = valueForZone((zone + mapping.zoneCount - 1) % mapping.zoneCount, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         break;
       }
     case kMappingSwitchZoneReset:
       {
-        if (zoneForValue(state.val, mapping.zoneCount) == zoneForValue(mapping.initialValue, mapping.zoneCount)) {
+        if (zoneForValue(state.val, mapping.zoneCount, mapping.minValue, mapping.maxValue) == zoneForValue(mapping.initialValue, mapping.zoneCount, mapping.minValue, mapping.maxValue)) {
           return;
         }
         state.val = mapping.initialValue;
@@ -401,7 +415,7 @@ void updateAnalogControllerValue(Mapping& mapping, int value) {
   if (mapping.mode != kMappingAnalog) {
     return;
   }
-  auto& state = *controllerState(mapping.controller);
+  auto& state = *controllerState(mapping.port, mapping.controller);
   state.val = value;
   sendController(state);
 }
