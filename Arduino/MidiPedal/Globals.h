@@ -70,6 +70,8 @@ struct Control
 {
   int8_t port : 4;
   int8_t ch : 4;
+  int8_t nrp : 1;
+  int8_t msb : 7;
   int8_t alt : 1;
   int8_t cc : 7;
 } __packed;

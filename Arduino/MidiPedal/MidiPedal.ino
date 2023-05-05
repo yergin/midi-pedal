@@ -110,19 +110,28 @@ void sendControlChange(HardwareSerial* ser, int ch, int cc, int val)
   {
     ser->write(0xB0 + ch);
     ser->write(cc);
-    ser->write(val);    
+    ser->write(val);
   }
+#if USB_SERIAL_LOGGING
+  String s = String() + "Ch:" + String(state.ch + 1) + " CC:" + String(state.cc) + " Val:" + state.val + "\n";
+  CompositeSerial.write(s.c_str());
+#endif
 }
 
 void sendController(const ControllerState& state)
 {
   setMidiStatus(kMidiSending);
   auto ser = serial(state);
-  sendControlChange(ser, state.control.ch, state.control.cc, state.val);
-#if USB_SERIAL_LOGGING
-  String s = String() + "Ch:" + String(state.ch + 1) + " CC:" + String(state.cc) + " Val:" + state.val + "\n";
-  CompositeSerial.write(s.c_str());
-#endif
+  if (state.control.nrp)
+  {
+    sendControlChange(ser, state.control.ch, 99, state.control.msb);
+    sendControlChange(ser, state.control.ch, 98, state.control.cc);
+    sendControlChange(ser, state.control.ch, 6, state.val);
+  }
+  else
+  {
+    sendControlChange(ser, state.control.ch, state.control.cc, state.val);
+  }
 }
 
 void sendMidiControllers() {
@@ -197,19 +206,19 @@ void loadPatch(int program) {
   CompositeSerial.write(s.c_str());
 #endif
   patch.program = 0;
-  patch.footSwitchMapping[0] = {{0, 0, 0, 80}, 85, 85, 127, 2, kMappingSwitchToggle};
-  patch.footSwitchMapping[1] = {{1, 0, 0, 19}, 85, 85, 127, 2, kMappingSwitchToggle};
-  patch.footSwitchMapping[2] = {{2, 0, 0, 19}, 0, 0, 127, 2, kMappingSwitchToggle};
-  patch.extControlMapping[0] = {{0, 0, 0, 11}, 0, 0, 127, 2, kMappingAnalog};
-  patch.extControlMapping[1] = {{1, 0, 0, 16}, 0, 0, 127, 2, kMappingAnalog};
-  patch.extControlMapping[2] = {{1, 0, 0, 48}, 0, 0, 127, 2, kMappingAnalog};
-  patch.extControlMapping[3] = {{0, 0, 0, 83}, 0, 0, 127, 2, kMappingSwitchToggle};
+  patch.footSwitchMapping[0] = {{1, 0, 0, 0, 0, 5}, 0, 0, 36, 2, kMappingSwitchMomentary};
+  patch.footSwitchMapping[1] = {{1, 0, 0, 0, 0, 85}, 64, 64, 96, 2, kMappingSwitchToggle};
+  patch.footSwitchMapping[2] = {{1, 0, 1, 0, 0, 75}, 0, 0, 2, 3, kMappingSwitchMomentary};
+  patch.extControlMapping[0] = {{0, 0, 0, 0, 0, 11}, 0, 0, 127, 2, kMappingAnalog};
+  patch.extControlMapping[1] = {{1, 0, 0, 0, 0, 16}, 0, 8, 64, 2, kMappingAnalog};
+  patch.extControlMapping[2] = {{1, 0, 0, 0, 0, 48}, 0, 0, 127, 2, kMappingAnalog};
+  patch.extControlMapping[3] = {{0, 0, 0, 0, 0, 83}, 0, 0, 127, 2, kMappingSwitchToggle};
   initialiseControllers();
 }
 
 bool controlsMatch(const Control& c1, const Control& c2)
 {
-  return c1.port == c2.port && c1.cc == c2.cc && c1.ch == c2.ch && c1.alt == c2.alt;
+  return c1.port == c2.port && c1.cc == c2.cc && c1.ch == c2.ch && c1.alt == c2.alt && c1.nrp == c2.nrp && c1.msb == c2.msb;
 }
 
 void updateControllerLed(Mapping& mapping, ControllerState& state, Colour& led) {
@@ -325,7 +334,7 @@ void setMidiStatus(UsbMidiStatus status) {
 }
 
 void updateMidiStatus() {
-  if (!midiConnected || millis() >= midiStatusUpdated + kMidiStatusStrobe) {
+  if (millis() >= midiStatusUpdated + kMidiStatusStrobe) {
     setMidiStatus(midiConnected ? kMidiConnected : kMidiDisconnected);
   }
   leds[kLedStatus] = kMidiStatusColors[midiStatus];
@@ -431,7 +440,7 @@ void updateAnalogControllerValue(Mapping& mapping, int value) {
     return;
   }
   auto& state = *controllerState(mapping.control);
-  state.val = value;
+  state.val = min(max(mapping.minValue, value * (mapping.maxValue - mapping.minValue + 1) / 128 + mapping.minValue), mapping.maxValue);
   sendController(state);
 }
 
