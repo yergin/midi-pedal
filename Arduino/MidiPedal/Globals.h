@@ -6,25 +6,27 @@
 #include <EEPROM.h>
 #include <Yabl.h>
 
-//#define USB_SERIAL_LOGGING 1
+#define USB_SERIAL_LOGGING 1
 
-
-enum UsbMidiStatus {
-  kMidiDisconnected,
-  kMidiConnected,
+enum MidiStatus
+{
+  kUsbMidiDisconnected,
+  kUsbMidiConnected,
   kMidiSending,
   kMidiReceiving,
   kMidiStatusCount
 };
 
-enum FootSwitches {
+enum FootSwitches
+{
   kFootSwitch1 = 0,
   kFootSwitch2,
   kFootSwitch3,
   kFootSwitchCount
 };
 
-enum ExtControls {
+enum ExtControls
+{
   kExtControl1 = 0,
   kExtControl2,
   kExtControl3,
@@ -32,7 +34,8 @@ enum ExtControls {
   kExtControlCount
 };
 
-enum Leds {
+enum Leds
+{
   kLedStatus,
   kLedExtControl1,
   kLedExtControl2,
@@ -44,7 +47,15 @@ enum Leds {
   kLedCount
 };
 
-struct ExtConfig {
+enum class MidiPort : uint8_t
+{
+  Usb = 1,
+  Din1 = 2,
+  Din2 = 4,
+};
+
+struct ExtConfig
+{
   bool isSwitch;
   bool inverted;
   uint16_t rawMin;
@@ -66,35 +77,101 @@ enum MappingMode : uint8_t {
   kMappingSwitchZoneReset,
 };
 
-struct Control
+enum class DataType : uint8_t
 {
-  int8_t port : 4;
-  int8_t ch : 4;
-  int8_t nrp : 1;
-  int8_t msb : 7;
-  int8_t alt : 1;
-  int8_t cc : 7;
+  Preset,
+  NoteVelocity,
+  PitchBend,
+  ProgramChange,
+  ControlChange,
+  RegisteredParameter,
+  NonRegisteredParameter,
+};
+
+struct DataAssignment
+{
+  union {
+    int8_t _header = 0;
+    struct {
+      MidiPort port : 2;
+      int8_t channel : 4;
+      int8_t is14Bit : 1;
+      int8_t : 1;
+    };
+  };
+  DataType type = DataType::ControlChange;
+  union
+  {
+    int8_t scope = 0;
+    int8_t note;
+    int8_t controller;
+    int8_t rpnLsb;
+    int8_t nrpnLsb;
+  };
+  union
+  {
+    int8_t controllerMsb = 0;
+    int8_t rpnMsb;
+    int8_t nrpnMsb;
+  };
 } __packed;
 
+constexpr int MaxZones = 5;
 struct Mapping
 {
-  Control control;
-  int16_t initialValue;
-  int16_t minValue;
-  int16_t maxValue;
-  int8_t zoneCount;
-  MappingMode mode;
+  DataAssignment assignment = {};
+  int16_t initialValue = 0;
+  union
+  {
+    struct
+    {
+      int16_t minValue = 0;
+      int16_t maxValue = 127;
+    };
+    int16_t zoneValues[MaxZones];
+  };
+  union
+  {
+    int8_t _footer = 0;
+    struct
+    {
+      int8_t zoneCount : 3;
+      int8_t useZoneValues: 1;
+      MappingMode mode : 4;
+    };
+  };
+  int8_t _reserved;
 } __packed;
 
-struct Patch {
+struct ControllerState
+{
+  DataAssignment assignment;
+  int16_t value;
+} __packed;
+
+constexpr int MaxPresetAssignments = 8;
+struct Preset
+{
+  int16_t values[MaxPresetAssignments];
+} __packed;
+
+constexpr int MaxPresets = 8;
+struct PresetScope
+{
+  DataAssignment assignments[MaxPresetAssignments];
+  Preset presets[MaxPresets];
+  int8_t assignmentCount;
+  int8_t presetCount;
+} __packed;
+
+constexpr int MaxPresetScopes = 4;
+struct Patch
+{
   Mapping footSwitchMapping[kFootSwitchCount];
   Mapping extControlMapping[kExtControlCount];
+  PresetScope presetScopes[MaxPresetScopes];
+  int8_t scopeCount;
   int8_t program;
-} __packed;
-
-struct ControllerState {
-  Control control;
-  int16_t val;
 } __packed;
 
 struct Colour {
@@ -125,7 +202,7 @@ constexpr int kPinExtControl[kExtControlCount] = { PA0, PA1, PA2, PA3 };
 constexpr int kPinExtSense[kExtControlCount] = { PB12, PB13, PB14, PB15 };
 
 inline Colour kMidiStatusColors[kMidiStatusCount] = {
-  { 191, 0, 7 },
+  { 127, 63, 95 },
   { 95, 95, 95 },
   { 0, 127, 0 },
   { 127, 0, 255 },
@@ -149,8 +226,8 @@ inline USBCompositeSerial CompositeSerial;
 #endif
 
 inline MidiController midi;
-inline bool midiConnected = false;
-inline UsbMidiStatus midiStatus = kMidiDisconnected;
+inline bool usbMidiConnected = false;
+inline MidiStatus midiStatus = kUsbMidiDisconnected;
 inline uint32_t midiStatusUpdated = 0;
 inline ExtConfig extConfig[kExtControlCount];
 inline ControllerState controllers[kFootSwitchCount + kExtControlCount];
