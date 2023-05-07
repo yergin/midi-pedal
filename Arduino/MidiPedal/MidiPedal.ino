@@ -12,7 +12,7 @@ void updateMidiStatus()
   {
     setMidiStatus(usbMidiConnected ? MidiStatus::UsbConnected : MidiStatus::UsbDisconnected);
   }
-  leds[kLedStatus] = MidiStatusColors[(int)midiStatus];
+  leds[(int)Led::Status] = MidiStatusColors[(int)midiStatus];
 }
 
 void handleProgramChange(unsigned int channel, unsigned int program)
@@ -49,12 +49,12 @@ void setupExtControllers()
     auto& conf = extConfig[i];
     if (conf.isSwitch)
     {
-      extSwitch[i].attach(kPinExtControl[i], INPUT_PULLUP);
+      extSwitch[i].attach(PinExtControl[i], INPUT_PULLUP);
       extSwitch[i].inverted(conf.inverted);
     }
     else
     {
-      extAnalog[i].setup(kPinExtControl[i], 127);
+      extAnalog[i].setup(PinExtControl[i], 127);
       extAnalog[i].configure(conf.rawMin, conf.rawMax, conf.inverted, false);
     }
   }
@@ -104,16 +104,16 @@ void setupIoPins()
 {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
-  ledPort.configureStrip(0, kLedPinData, kLedPinClock);
+  ledPort.configureStrip(0, LedPinData, LedPinClock);
   for (int i = 0; i < FootSwitchCount; i++)
   {
-    footSwitches[i].attach(kPinFootSwitch[i], INPUT_PULLUP);
+    footSwitches[i].attach(PinFootSwitch[i], INPUT_PULLUP);
     footSwitches[i].enableDoubleTap(false);
     footSwitches[i].enableHold(false);
   }
   for (int i = 0; i < ExternalControlCount; i++)
   {
-    extSensors[i].attach(kPinExtSense[i], INPUT_PULLDOWN);
+    extSensors[i].attach(PinExtSense[i], INPUT_PULLDOWN);
     extSensors[i].enableDoubleTap(false);
     extSensors[i].enableHold(false);
   }
@@ -268,7 +268,7 @@ void initialiseControllers()
   for (int i = 0; i < FootSwitchCount; i++)
   {
     const auto& mapping = patch.footSwitchMapping[i];
-    if (mapping.mode == kMappingNone)
+    if (mapping.mode == MappingMode::None)
     {
       continue;
     }
@@ -280,13 +280,13 @@ void initialiseControllers()
   for (int i = 0; i < ExternalControlCount; i++)
   {
     const auto& mapping = patch.extControlMapping[i];
-    if (mapping.mode == kMappingNone)
+    if (mapping.mode == MappingMode::None)
     {
       continue;
     }
     if (auto state = addController(mapping))
     {
-      if (!extConfig[i].isSwitch && mapping.mode == kMappingAnalog)
+      if (!extConfig[i].isSwitch && mapping.mode == MappingMode::Analog)
       {
         extSensors[i].update();
         if (extSensors[i].down())
@@ -315,7 +315,7 @@ void loadPatch(int program)
   patch.footSwitchMapping[0].initialValue = 0;
   patch.footSwitchMapping[0].minValue = 0;
   patch.footSwitchMapping[0].maxValue = 1;
-  patch.footSwitchMapping[0].mode = kMappingSwitchMomentary;
+  patch.footSwitchMapping[0].mode = MappingMode::SwitchMomentary;
 
   patch.footSwitchMapping[1] = {};
   patch.footSwitchMapping[1].parameter.port = MidiPort::Din1,
@@ -323,7 +323,7 @@ void loadPatch(int program)
   patch.footSwitchMapping[1].initialValue = 71;
   patch.footSwitchMapping[1].minValue = 71;
   patch.footSwitchMapping[1].maxValue = 76;
-  patch.footSwitchMapping[1].mode = kMappingSwitchToggle;
+  patch.footSwitchMapping[1].mode = MappingMode::SwitchToggle;
 
   patch.footSwitchMapping[2] = {};
   patch.footSwitchMapping[2].parameter.port = MidiPort::Din1,
@@ -331,7 +331,7 @@ void loadPatch(int program)
   patch.footSwitchMapping[2].initialValue = 73;
   patch.footSwitchMapping[2].minValue = 73;
   patch.footSwitchMapping[2].maxValue = 76;
-  patch.footSwitchMapping[2].mode = kMappingSwitchToggle;
+  patch.footSwitchMapping[2].mode = MappingMode::SwitchToggle;
 
   patch.extControlMapping[0] = {};
   patch.extControlMapping[0].parameter.port = MidiPort::Usb,
@@ -340,16 +340,16 @@ void loadPatch(int program)
   patch.extControlMapping[0].initialValue = 0;
   patch.extControlMapping[0].minValue = 0;
   patch.extControlMapping[0].maxValue = 127;
-  patch.extControlMapping[0].mode = kMappingAnalog;
+  patch.extControlMapping[0].mode = MappingMode::Analog;
 
   patch.extControlMapping[1] = {};
   patch.extControlMapping[1].parameter.port = MidiPort::Din1,
   patch.extControlMapping[1].parameter.type = ParameterType::ControlChange,
   patch.extControlMapping[1].parameter.controller = 16,
-  patch.extControlMapping[1].initialValue = 6;
-  patch.extControlMapping[1].minValue = 6;
+  patch.extControlMapping[1].initialValue = 4;
+  patch.extControlMapping[1].minValue = 4;
   patch.extControlMapping[1].maxValue = 64;
-  patch.extControlMapping[1].mode = kMappingAnalog;
+  patch.extControlMapping[1].mode = MappingMode::Analog;
 
   patch.extControlMapping[2] = {};
   patch.extControlMapping[2].parameter.port = MidiPort::Din1,
@@ -358,7 +358,7 @@ void loadPatch(int program)
   patch.extControlMapping[2].initialValue = 0;
   patch.extControlMapping[2].minValue = 0;
   patch.extControlMapping[2].maxValue = 127;
-  patch.extControlMapping[2].mode = kMappingAnalog;
+  patch.extControlMapping[2].mode = MappingMode::Analog;
 
   patch.extControlMapping[3] = {};
   patch.extControlMapping[3].parameter.port = MidiPort::Usb,
@@ -367,7 +367,7 @@ void loadPatch(int program)
   patch.extControlMapping[3].initialValue = 0;
   patch.extControlMapping[3].minValue = 0;
   patch.extControlMapping[3].maxValue = 127;
-  patch.extControlMapping[3].mode = kMappingSwitchToggle;
+  patch.extControlMapping[3].mode = MappingMode::SwitchToggle;
 
   patch.presetGroupCount = 1;
   patch.presetGroups[0].parameterCount = 2;
@@ -404,24 +404,27 @@ void updateControllerLed(Mapping& mapping, ControllerState& state, Colour& led)
     return;
   }
   auto val = state.parameter.is14Bit ? state.value >> 7 : state.value;
-  switch (mapping.mode) {
-    case kMappingSwitchZoneUp:
-    case kMappingSwitchZoneDown:
-    case kMappingSwitchZoneUpCycle:
-    case kMappingSwitchZoneDownCycle:
-    case kMappingSwitchZoneReset:
+  switch (mapping.mode)
+  {
+    case MappingMode::SwitchZoneUp:
+    case MappingMode::SwitchZoneDown:
+    case MappingMode::SwitchZoneUpCycle:
+    case MappingMode::SwitchZoneDownCycle:
+    case MappingMode::SwitchZoneReset:
       val = valueForZone(zoneForValue(val, mapping.zoneCount, mapping.minValue, mapping.maxValue), mapping.zoneCount, mapping.minValue, mapping.maxValue);
-    case kMappingNone:
-    case kMappingAnalog:
-    case kMappingSwitchToggle:
-    case kMappingSwitchMomentary:
-    case kMappingSwitchUp:
-    case kMappingSwitchDown:
-    case kMappingSwitchReset:
-      if (val < 32) {
+    case MappingMode::None:
+    case MappingMode::Analog:
+    case MappingMode::SwitchToggle:
+    case MappingMode::SwitchMomentary:
+    case MappingMode::SwitchUp:
+    case MappingMode::SwitchDown:
+    case MappingMode::SwitchReset:
+      if (val < 32)
+      {
         led = { 0, 95 + val, 127 - (val << 2) };
       }
-      else {
+      else
+      {
         val = val - 32;
         led = { val * 2, 127 - val + (val >> 2), 0 };
       }
@@ -431,23 +434,23 @@ void updateControllerLed(Mapping& mapping, ControllerState& state, Colour& led)
 
 bool extControlMapped(int index)
 {
-  return patch.extControlMapping[index].mode != kMappingNone;
+  return patch.extControlMapping[index].mode != MappingMode::None;
 }
 
 bool extControlMappedCorrectly(int index)
 {
-  if (patch.extControlMapping[index].mode == kMappingNone)
+  if (patch.extControlMapping[index].mode == MappingMode::None)
   {
     return true;
   }
-  return (patch.extControlMapping[index].mode == kMappingAnalog) == !extConfig[index].isSwitch;
+  return (patch.extControlMapping[index].mode == MappingMode::Analog) == !extConfig[index].isSwitch;
 }
 
 void updateControllerLeds()
 {
   for (int i = 0; i < FootSwitchCount; i++)
   {
-    leds[kLedFootSwitchMap[i]] = { 0, 0, 0 };
+    leds[LedFootSwitchMap[i]] = { 0, 0, 0 };
   }
   for (int i = 0; i < ExternalControlCount; i++)
   {
@@ -457,30 +460,30 @@ void updateControllerLeds()
       {
         if (!extControlMappedCorrectly(i))
         {
-          leds[kLedExtControlMap[i]] = { 127, 0, 95 };
+          leds[LedExtControlMap[i]] = { 127, 0, 95 };
         }
       }
       else
       {
-        leds[kLedExtControlMap[i]] = { 191, 0, 7 };
+        leds[LedExtControlMap[i]] = { 191, 0, 7 };
       }
     }
     else
     {
-      leds[kLedExtControlMap[i]] = { 0, 0, 0 };
+      leds[LedExtControlMap[i]] = { 0, 0, 0 };
     }
   }
   for (int c = 0; c < controllerCount; c++)
   {
     for (int i = 0; i < FootSwitchCount; i++)
     {
-      updateControllerLed(patch.footSwitchMapping[i], controllers[c], leds[kLedFootSwitchMap[i]]);
+      updateControllerLed(patch.footSwitchMapping[i], controllers[c], leds[LedFootSwitchMap[i]]);
     }
     for (int i = 0; i < ExternalControlCount; i++)
     {
       if (extSensors[i].down() && extControlMapped(i) && extControlMappedCorrectly(i))
       {
-        updateControllerLed(patch.extControlMapping[i], controllers[c], leds[kLedExtControlMap[i]]);
+        updateControllerLed(patch.extControlMapping[i], controllers[c], leds[LedExtControlMap[i]]);
       }
     }
   }
@@ -488,7 +491,7 @@ void updateControllerLeds()
 
 void displayLeds()
 {
-  static uint8_t buf[8 + 4 * kLedCount];
+  static uint8_t buf[8 + 4 * LedCount];
   uint8_t brightness = 0x1; // 0-F
   uint8_t global = 0xE0 | brightness;
   uint8_t* out = buf;
@@ -497,7 +500,7 @@ void displayLeds()
   *out++ = 0x00;
   *out++ = 0x00;
   *out++ = 0x00;
-  for (int i = 0; i < kLedCount; i++)
+  for (int i = 0; i < LedCount; i++)
   {
     *out++ = global;
     *out++ = col->b;
@@ -543,12 +546,12 @@ int8_t valueForZone(int zone, int count, int minValue, int maxValue)
 
 void updateButtonControllerValue(Mapping& mapping, bool down)
 {
-  if (mapping.mode == kMappingNone)
+  if (mapping.mode == MappingMode::None)
   {
     return;
   }
   auto& state = *controllerState(mapping.parameter);
-  if (mapping.mode == kMappingSwitchMomentary)
+  if (mapping.mode == MappingMode::SwitchMomentary)
   {
     state.value = down ? mapping.maxValue : mapping.minValue;
     setValue(state.parameter, state.value);
@@ -560,16 +563,16 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
   }
   switch (mapping.mode)
   {
-    case kMappingNone:
-    case kMappingAnalog:
-    case kMappingSwitchMomentary:
+    case MappingMode::None:
+    case MappingMode::Analog:
+    case MappingMode::SwitchMomentary:
       return;
 
-    case kMappingSwitchToggle:
+    case MappingMode::SwitchToggle:
       state.value = state.value >= ((int)mapping.minValue + (int)mapping.maxValue) / 2 ? mapping.minValue : mapping.maxValue;
       break;
 
-    case kMappingSwitchUp:
+    case MappingMode::SwitchUp:
       if (state.value >= mapping.maxValue)
       {
         return;
@@ -577,7 +580,7 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
       state.value++;
       break;
 
-    case kMappingSwitchDown:
+    case MappingMode::SwitchDown:
       if (state.value <= mapping.minValue)
       {
         return;
@@ -585,7 +588,7 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
       state.value--;
       break;
 
-    case kMappingSwitchReset:
+    case MappingMode::SwitchReset:
       if (state.value == mapping.initialValue)
       {
         return;
@@ -593,7 +596,7 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
       state.value = mapping.initialValue;
       break;
 
-    case kMappingSwitchZoneUp:
+    case MappingMode::SwitchZoneUp:
       {
         auto zone = zoneForValue(state.value, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         if (zone == mapping.zoneCount - 1)
@@ -604,7 +607,7 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
         break;
       }
 
-    case kMappingSwitchZoneDown:
+    case MappingMode::SwitchZoneDown:
       {
         auto zone = zoneForValue(state.value, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         if (zone == 0) {
@@ -614,21 +617,21 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
         break;
       }
 
-    case kMappingSwitchZoneUpCycle:
+    case MappingMode::SwitchZoneUpCycle:
       {
         auto zone = zoneForValue(state.value, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         state.value = valueForZone((zone + 1) % mapping.zoneCount, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         break;
       }
 
-    case kMappingSwitchZoneDownCycle:
+    case MappingMode::SwitchZoneDownCycle:
       {
         auto zone = zoneForValue(state.value, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         state.value = valueForZone((zone + mapping.zoneCount - 1) % mapping.zoneCount, mapping.zoneCount, mapping.minValue, mapping.maxValue);
         break;
       }
 
-    case kMappingSwitchZoneReset:
+    case MappingMode::SwitchZoneReset:
       {
         if (zoneForValue(state.value, mapping.zoneCount, mapping.minValue, mapping.maxValue) == zoneForValue(mapping.initialValue, mapping.zoneCount, mapping.minValue, mapping.maxValue))
         {
@@ -643,7 +646,7 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
 
 void updateAnalogControllerValue(Mapping& mapping, int value)
 {
-  if (mapping.mode != kMappingAnalog)
+  if (mapping.mode != MappingMode::Analog)
   {
     return;
   }

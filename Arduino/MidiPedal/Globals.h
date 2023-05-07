@@ -8,7 +8,7 @@
 
 #define USB_SERIAL_LOGGING 1
 
-enum class MidiStatus
+enum class MidiStatus : uint8_t
 {
   UsbDisconnected,
   UsbConnected,
@@ -19,7 +19,7 @@ enum class MidiStatus
 
 inline constexpr int MidiStatusCount = (int)MidiStatus::Count;
 
-enum class FootSwitch
+enum class FootSwitch : uint8_t
 {
   S1 = 0,
   S2,
@@ -29,7 +29,7 @@ enum class FootSwitch
 
 inline constexpr int FootSwitchCount = (int)FootSwitch::Count;
 
-enum class ExternalControl
+enum class ExternalControl : uint8_t
 {
   X1 = 0,
   X2,
@@ -40,18 +40,20 @@ enum class ExternalControl
 
 inline constexpr int ExternalControlCount = (int)ExternalControl::Count;
 
-enum Leds
+enum class Led : uint8_t
 {
-  kLedStatus,
-  kLedExtControl1,
-  kLedExtControl2,
-  kLedExtControl3,
-  kLedExtControl4,
-  kLedFootSwitch3,
-  kLedFootSwitch2,
-  kLedFootSwitch1,
-  kLedCount
+  Status,
+  X1,
+  X2,
+  X3,
+  X4,
+  S3,
+  S2,
+  S1,
+  Count
 };
+
+inline constexpr int LedCount = (int)Led::Count;
 
 enum class MidiPort : uint8_t
 {
@@ -68,19 +70,19 @@ struct ExtConfig
   uint16_t rawMax;
 } __packed;
 
-enum MappingMode : uint8_t {
-  kMappingNone,
-  kMappingAnalog,
-  kMappingSwitchToggle,
-  kMappingSwitchMomentary,
-  kMappingSwitchUp,
-  kMappingSwitchDown,
-  kMappingSwitchReset,
-  kMappingSwitchZoneUp,
-  kMappingSwitchZoneDown,
-  kMappingSwitchZoneUpCycle,
-  kMappingSwitchZoneDownCycle,
-  kMappingSwitchZoneReset,
+enum class MappingMode : uint8_t {
+  None,
+  Analog,
+  SwitchToggle,
+  SwitchMomentary,
+  SwitchUp,
+  SwitchDown,
+  SwitchReset,
+  SwitchZoneUp,
+  SwitchZoneDown,
+  SwitchZoneUpCycle,
+  SwitchZoneDownCycle,
+  SwitchZoneReset,
 };
 
 enum class ParameterType : uint8_t
@@ -144,7 +146,7 @@ struct Mapping
       int8_t zoneCount : 3;
       int8_t useZoneValues: 1;
       MappingMode mode : 4;
-    };
+    } __packed;
   };
   int8_t _reserved;
 } __packed;
@@ -180,9 +182,12 @@ struct Patch
   int8_t program;
 } __packed;
 
-struct Colour {
-  union {
-    struct {
+struct Colour
+{
+  union
+  {
+    struct
+    {
       uint8_t r;
       uint8_t g;
       uint8_t b;
@@ -191,21 +196,21 @@ struct Colour {
   };
 } __packed;
 
-constexpr int kPinDisplayScl = PB6;
-constexpr int kPinDisplaySda = PB7;
+constexpr int PinDisplayScl = PB6;
+constexpr int PinDisplaySda = PB7;
 
-#define kLedPort GPIOB_BASE
-constexpr int kLedPinData = 9;
-constexpr int kLedPinClock = 8;
-constexpr int kPinLedPortData = PB9;
-constexpr int kPinLedPortClock = PB8;
+#define LedPort GPIOB_BASE
+constexpr int LedPinData = 9;
+constexpr int LedPinClock = 8;
+constexpr int PinLedPortData = PB9;
+constexpr int PinLedPortClock = PB8;
 
-constexpr int kLedFootSwitchMap[FootSwitchCount] = { kLedFootSwitch1, kLedFootSwitch2, kLedFootSwitch3 };
-constexpr int kLedExtControlMap[ExternalControlCount] = { kLedExtControl1, kLedExtControl2, kLedExtControl3, kLedExtControl4 };
+constexpr int LedFootSwitchMap[FootSwitchCount] = { (int)Led::S1, (int)Led::S2, (int)Led::S3 };
+constexpr int LedExtControlMap[ExternalControlCount] = { (int)Led::X1, (int)Led::X2, (int)Led::X3, (int)Led::X4 };
 
-constexpr int kPinFootSwitch[FootSwitchCount] = { PB3, PB4, PB5 };
-constexpr int kPinExtControl[ExternalControlCount] = { PA0, PA1, PA2, PA3 };
-constexpr int kPinExtSense[ExternalControlCount] = { PB12, PB13, PB14, PB15 };
+constexpr int PinFootSwitch[FootSwitchCount] = { PB3, PB4, PB5 };
+constexpr int PinExtControl[ExternalControlCount] = { PA0, PA1, PA2, PA3 };
+constexpr int PinExtSense[ExternalControlCount] = { PB12, PB13, PB14, PB15 };
 
 inline Colour MidiStatusColors[MidiStatusCount] = {
   { 127, 63, 95 },
@@ -216,7 +221,7 @@ inline Colour MidiStatusColors[MidiStatusCount] = {
 
 constexpr int MidiStatusStrobe = 200;
 
-inline Colour leds[kLedCount] = {
+inline Colour leds[LedCount] = {
   { 0, 0, 0 },
   { 0, 0, 0 },
   { 0, 0, 0 },
@@ -239,7 +244,7 @@ inline ExtConfig extConfig[ExternalControlCount];
 inline ControllerState controllers[FootSwitchCount + ExternalControlCount];
 inline uint8_t controllerCount = 0;
 inline Patch patch;
-inline Apa102Port ledPort(*kLedPort);
+inline Apa102Port ledPort(*LedPort);
 inline Button footSwitches[FootSwitchCount];
 inline Button extSensors[ExternalControlCount];
 inline Button extSwitch[ExternalControlCount];
