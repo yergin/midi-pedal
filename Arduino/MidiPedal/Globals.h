@@ -8,31 +8,37 @@
 
 #define USB_SERIAL_LOGGING 1
 
-enum MidiStatus
+enum class MidiStatus
 {
-  kUsbMidiDisconnected,
-  kUsbMidiConnected,
-  kMidiSending,
-  kMidiReceiving,
-  kMidiStatusCount
+  UsbDisconnected,
+  UsbConnected,
+  Sending,
+  Receiving,
+  Count
 };
 
-enum FootSwitches
+inline constexpr int MidiStatusCount = (int)MidiStatus::Count;
+
+enum class FootSwitch
 {
-  kFootSwitch1 = 0,
-  kFootSwitch2,
-  kFootSwitch3,
-  kFootSwitchCount
+  S1 = 0,
+  S2,
+  S3,
+  Count
 };
 
-enum ExtControls
+inline constexpr int FootSwitchCount = (int)FootSwitch::Count;
+
+enum class ExternalControl
 {
-  kExtControl1 = 0,
-  kExtControl2,
-  kExtControl3,
-  kExtControl4,
-  kExtControlCount
+  X1 = 0,
+  X2,
+  X3,
+  X4,
+  Count
 };
+
+inline constexpr int ExternalControlCount = (int)ExternalControl::Count;
 
 enum Leds
 {
@@ -77,7 +83,7 @@ enum MappingMode : uint8_t {
   kMappingSwitchZoneReset,
 };
 
-enum class DataType : uint8_t
+enum class ParameterType : uint8_t
 {
   Preset,
   NoteVelocity,
@@ -88,7 +94,7 @@ enum class DataType : uint8_t
   NonRegisteredParameter,
 };
 
-struct DataAssignment
+struct Parameter
 {
   union {
     int8_t _header = 0;
@@ -99,10 +105,10 @@ struct DataAssignment
       int8_t : 1;
     };
   };
-  DataType type = DataType::ControlChange;
+  ParameterType type = ParameterType::ControlChange;
   union
   {
-    int8_t scope = 0;
+    int8_t presetGroup = 0;
     int8_t note;
     int8_t controller;
     int8_t rpnLsb;
@@ -119,7 +125,7 @@ struct DataAssignment
 constexpr int MaxZones = 5;
 struct Mapping
 {
-  DataAssignment assignment = {};
+  Parameter parameter = {};
   int16_t initialValue = 0;
   union
   {
@@ -145,32 +151,32 @@ struct Mapping
 
 struct ControllerState
 {
-  DataAssignment assignment;
+  Parameter parameter;
   int16_t value;
 } __packed;
 
-constexpr int MaxPresetAssignments = 8;
+constexpr int MaxPresetParameters = 8;
 struct Preset
 {
-  int16_t values[MaxPresetAssignments];
+  int16_t values[MaxPresetParameters];
 } __packed;
 
 constexpr int MaxPresets = 8;
-struct PresetScope
+struct PresetGroup
 {
-  DataAssignment assignments[MaxPresetAssignments];
+  Parameter parameters[MaxPresetParameters];
   Preset presets[MaxPresets];
-  int8_t assignmentCount;
+  int8_t parameterCount;
   int8_t presetCount;
 } __packed;
 
-constexpr int MaxPresetScopes = 4;
+constexpr int MaxPresetGroups = 4;
 struct Patch
 {
-  Mapping footSwitchMapping[kFootSwitchCount];
-  Mapping extControlMapping[kExtControlCount];
-  PresetScope presetScopes[MaxPresetScopes];
-  int8_t scopeCount;
+  Mapping footSwitchMapping[FootSwitchCount];
+  Mapping extControlMapping[ExternalControlCount];
+  PresetGroup presetGroups[MaxPresetGroups];
+  int8_t presetGroupCount;
   int8_t program;
 } __packed;
 
@@ -194,21 +200,21 @@ constexpr int kLedPinClock = 8;
 constexpr int kPinLedPortData = PB9;
 constexpr int kPinLedPortClock = PB8;
 
-constexpr int kLedFootSwitchMap[kFootSwitchCount] = { kLedFootSwitch1, kLedFootSwitch2, kLedFootSwitch3 };
-constexpr int kLedExtControlMap[kExtControlCount] = { kLedExtControl1, kLedExtControl2, kLedExtControl3, kLedExtControl4 };
+constexpr int kLedFootSwitchMap[FootSwitchCount] = { kLedFootSwitch1, kLedFootSwitch2, kLedFootSwitch3 };
+constexpr int kLedExtControlMap[ExternalControlCount] = { kLedExtControl1, kLedExtControl2, kLedExtControl3, kLedExtControl4 };
 
-constexpr int kPinFootSwitch[kFootSwitchCount] = { PB3, PB4, PB5 };
-constexpr int kPinExtControl[kExtControlCount] = { PA0, PA1, PA2, PA3 };
-constexpr int kPinExtSense[kExtControlCount] = { PB12, PB13, PB14, PB15 };
+constexpr int kPinFootSwitch[FootSwitchCount] = { PB3, PB4, PB5 };
+constexpr int kPinExtControl[ExternalControlCount] = { PA0, PA1, PA2, PA3 };
+constexpr int kPinExtSense[ExternalControlCount] = { PB12, PB13, PB14, PB15 };
 
-inline Colour kMidiStatusColors[kMidiStatusCount] = {
+inline Colour MidiStatusColors[MidiStatusCount] = {
   { 127, 63, 95 },
   { 95, 95, 95 },
   { 0, 127, 0 },
   { 127, 0, 255 },
 };
 
-constexpr int kMidiStatusStrobe = 200;
+constexpr int MidiStatusStrobe = 200;
 
 inline Colour leds[kLedCount] = {
   { 0, 0, 0 },
@@ -227,14 +233,14 @@ inline USBCompositeSerial CompositeSerial;
 
 inline MidiController midi;
 inline bool usbMidiConnected = false;
-inline MidiStatus midiStatus = kUsbMidiDisconnected;
+inline MidiStatus midiStatus = MidiStatus::UsbDisconnected;
 inline uint32_t midiStatusUpdated = 0;
-inline ExtConfig extConfig[kExtControlCount];
-inline ControllerState controllers[kFootSwitchCount + kExtControlCount];
+inline ExtConfig extConfig[ExternalControlCount];
+inline ControllerState controllers[FootSwitchCount + ExternalControlCount];
 inline uint8_t controllerCount = 0;
 inline Patch patch;
 inline Apa102Port ledPort(*kLedPort);
-inline Button footSwitches[kFootSwitchCount];
-inline Button extSensors[kExtControlCount];
-inline Button extSwitch[kExtControlCount];
-inline AnalogReader extAnalog[kExtControlCount];
+inline Button footSwitches[FootSwitchCount];
+inline Button extSensors[ExternalControlCount];
+inline Button extSwitch[ExternalControlCount];
+inline AnalogReader extAnalog[ExternalControlCount];

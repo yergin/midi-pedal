@@ -8,16 +8,16 @@ void setMidiStatus(MidiStatus status)
 
 void updateMidiStatus()
 {
-  if (millis() >= midiStatusUpdated + kMidiStatusStrobe)
+  if (millis() >= midiStatusUpdated + MidiStatusStrobe)
   {
-    setMidiStatus(usbMidiConnected ? kUsbMidiConnected : kUsbMidiDisconnected);
+    setMidiStatus(usbMidiConnected ? MidiStatus::UsbConnected : MidiStatus::UsbDisconnected);
   }
-  leds[kLedStatus] = kMidiStatusColors[midiStatus];
+  leds[kLedStatus] = MidiStatusColors[(int)midiStatus];
 }
 
 void handleProgramChange(unsigned int channel, unsigned int program)
 {
-  setMidiStatus(kMidiReceiving);
+  setMidiStatus(MidiStatus::Receiving);
 #if USB_SERIAL_LOGGING
   String s = String() + "Received Program Change " + String(program) + " [Ch:" + String(channel + 1) + "]\n";
   CompositeSerial.write(s.c_str());
@@ -26,7 +26,7 @@ void handleProgramChange(unsigned int channel, unsigned int program)
 
 void handleSysExData(unsigned char data)
 {
-  setMidiStatus(kMidiReceiving);
+  setMidiStatus(MidiStatus::Receiving);
 #if USB_SERIAL_LOGGING
   String s = String() + "Received SysEx byte: 0x" + String(data, 16) + "\n";
   CompositeSerial.write(s.c_str());
@@ -35,7 +35,7 @@ void handleSysExData(unsigned char data)
 
 void handleSysExEnd()
 {
-  setMidiStatus(kMidiReceiving);
+  setMidiStatus(MidiStatus::Receiving);
 #if USB_SERIAL_LOGGING
   String s = String() + "End of SysEx\n";
   CompositeSerial.write(s.c_str());
@@ -44,7 +44,7 @@ void handleSysExEnd()
 
 void setupExtControllers()
 {
-  for (int i = 0; i < kExtControlCount; i++)
+  for (int i = 0; i < ExternalControlCount; i++)
   {
     auto& conf = extConfig[i];
     if (conf.isSwitch)
@@ -105,13 +105,13 @@ void setupIoPins()
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
   ledPort.configureStrip(0, kLedPinData, kLedPinClock);
-  for (int i = 0; i < kFootSwitchCount; i++)
+  for (int i = 0; i < FootSwitchCount; i++)
   {
     footSwitches[i].attach(kPinFootSwitch[i], INPUT_PULLUP);
     footSwitches[i].enableDoubleTap(false);
     footSwitches[i].enableHold(false);
   }
-  for (int i = 0; i < kExtControlCount; i++)
+  for (int i = 0; i < ExternalControlCount; i++)
   {
     extSensors[i].attach(kPinExtSense[i], INPUT_PULLDOWN);
     extSensors[i].enableDoubleTap(false);
@@ -168,58 +168,58 @@ void sendControlChange(HardwareSerial* ser, int ch, int cc, int val)
 #endif
 }
 
-void setValue(DataAssignment assign, int16_t value)
+void setValue(Parameter param, int16_t value)
 {
-  setMidiStatus(kMidiSending);
+  setMidiStatus(MidiStatus::Sending);
   int lsb = value & 0x7f;
   int msb = (value >> 7) & 0x7f;
-  auto ser = serial(assign.port);
-  switch (assign.type)
+  auto ser = serial(param.port);
+  switch (param.type)
   {
-    case DataType::Preset:
-      for (int i = 0; i < patch.presetScopes[assign.scope].assignmentCount; i++)
+    case ParameterType::Preset:
+      for (int i = 0; i < patch.presetGroups[param.presetGroup].parameterCount; i++)
       {
-        setValue(patch.presetScopes[assign.scope].assignments[i], patch.presetScopes[assign.scope].presets[lsb].values[i]);
+        setValue(patch.presetGroups[param.presetGroup].parameters[i], patch.presetGroups[param.presetGroup].presets[lsb].values[i]);
       }
       break;
 
-    case DataType::ProgramChange:
-      sendProgramChange(ser, assign.channel, lsb);
+    case ParameterType::ProgramChange:
+      sendProgramChange(ser, param.channel, lsb);
       break;
 
-    case DataType::ControlChange:
-      sendControlChange(ser, assign.channel, assign.controller, lsb);
-      if (assign.is14Bit)
+    case ParameterType::ControlChange:
+      sendControlChange(ser, param.channel, param.controller, lsb);
+      if (param.is14Bit)
       {
-        sendControlChange(ser, assign.channel, assign.controllerMsb, msb);
+        sendControlChange(ser, param.channel, param.controllerMsb, msb);
       }
       break;
 
-    case DataType::RegisteredParameter:
-      sendControlChange(ser, assign.channel, 0x65, assign.rpnMsb);
-      sendControlChange(ser, assign.channel, 0x64, assign.rpnLsb);
-      if (assign.is14Bit)
+    case ParameterType::RegisteredParameter:
+      sendControlChange(ser, param.channel, 0x65, param.rpnMsb);
+      sendControlChange(ser, param.channel, 0x64, param.rpnLsb);
+      if (param.is14Bit)
       {
-        sendControlChange(ser, assign.channel, 0x06, msb);
-        sendControlChange(ser, assign.channel, 0x26, lsb);
+        sendControlChange(ser, param.channel, 0x06, msb);
+        sendControlChange(ser, param.channel, 0x26, lsb);
       }
       else
       {
-        sendControlChange(ser, assign.channel, 0x06, lsb);
+        sendControlChange(ser, param.channel, 0x06, lsb);
       }
       break;
 
-    case DataType::NonRegisteredParameter:
-      sendControlChange(ser, assign.channel, 0x63, assign.nrpnMsb);
-      sendControlChange(ser, assign.channel, 0x62, assign.nrpnLsb);
-      if (assign.is14Bit)
+    case ParameterType::NonRegisteredParameter:
+      sendControlChange(ser, param.channel, 0x63, param.nrpnMsb);
+      sendControlChange(ser, param.channel, 0x62, param.nrpnLsb);
+      if (param.is14Bit)
       {
-        sendControlChange(ser, assign.channel, 0x06, msb);
-        sendControlChange(ser, assign.channel, 0x26, lsb);
+        sendControlChange(ser, param.channel, 0x06, msb);
+        sendControlChange(ser, param.channel, 0x26, lsb);
       }
       else
       {
-        sendControlChange(ser, assign.channel, 0x06, lsb);
+        sendControlChange(ser, param.channel, 0x06, lsb);
       }
   }
 }
@@ -228,7 +228,7 @@ void sendAllValues()
 {
   for (int i = 0; i < controllerCount; i++)
   {
-    setValue(controllers[i].assignment, controllers[i].value);
+    setValue(controllers[i].parameter, controllers[i].value);
   }
 }
 
@@ -237,11 +237,11 @@ void clearControllers()
   controllerCount = 0;
 }
 
-ControllerState* controllerState(const DataAssignment& assign)
+ControllerState* controllerState(const Parameter& parameter)
 {
   for (int i = 0; i < controllerCount; i++)
   {
-    if (controlsMatch(controllers[i].assignment, assign))
+    if (parametersMatch(controllers[i].parameter, parameter))
     {
       return controllers + i;
     }
@@ -251,12 +251,12 @@ ControllerState* controllerState(const DataAssignment& assign)
 
 ControllerState* addController(const Mapping& mapping)
 {
-  if (controllerState(mapping.assignment))
+  if (controllerState(mapping.parameter))
   {
     return nullptr;
   }
   controllers[controllerCount] = {
-    .assignment = mapping.assignment,
+    .parameter = mapping.parameter,
     .value = mapping.initialValue,
   };
   return &controllers[controllerCount++];
@@ -265,7 +265,7 @@ ControllerState* addController(const Mapping& mapping)
 void initialiseControllers()
 {
   clearControllers();
-  for (int i = 0; i < kFootSwitchCount; i++)
+  for (int i = 0; i < FootSwitchCount; i++)
   {
     const auto& mapping = patch.footSwitchMapping[i];
     if (mapping.mode == kMappingNone)
@@ -274,10 +274,10 @@ void initialiseControllers()
     }
     if (auto state = addController(mapping))
     {
-      setValue(state->assignment, state->value);
+      setValue(state->parameter, state->value);
     }
   }
-  for (int i = 0; i < kExtControlCount; i++)
+  for (int i = 0; i < ExternalControlCount; i++)
   {
     const auto& mapping = patch.extControlMapping[i];
     if (mapping.mode == kMappingNone)
@@ -294,14 +294,15 @@ void initialiseControllers()
           state->value = extAnalog[i].value();
         }
       }
-      setValue(state->assignment, state->value);
+      setValue(state->parameter, state->value);
     }
   }
 
   sendAllValues();
 }
 
-void loadPatch(int program) {
+void loadPatch(int program)
+{
 #if USB_SERIAL_LOGGING
   String s = String() + "Loading patch for program " + String(program) + "\n";
   CompositeSerial.write(s.c_str());
@@ -309,100 +310,100 @@ void loadPatch(int program) {
   patch.program = 0;
 
   patch.footSwitchMapping[0] = {};
-  patch.footSwitchMapping[0].assignment.type = DataType::Preset,
-  patch.footSwitchMapping[0].assignment.scope = 0,
+  patch.footSwitchMapping[0].parameter.type = ParameterType::Preset,
+  patch.footSwitchMapping[0].parameter.presetGroup = 0,
   patch.footSwitchMapping[0].initialValue = 0;
   patch.footSwitchMapping[0].minValue = 0;
   patch.footSwitchMapping[0].maxValue = 1;
   patch.footSwitchMapping[0].mode = kMappingSwitchMomentary;
 
   patch.footSwitchMapping[1] = {};
-  patch.footSwitchMapping[1].assignment.port = MidiPort::Din1,
-  patch.footSwitchMapping[1].assignment.type = DataType::ProgramChange,
+  patch.footSwitchMapping[1].parameter.port = MidiPort::Din1,
+  patch.footSwitchMapping[1].parameter.type = ParameterType::ProgramChange,
   patch.footSwitchMapping[1].initialValue = 71;
   patch.footSwitchMapping[1].minValue = 71;
   patch.footSwitchMapping[1].maxValue = 76;
   patch.footSwitchMapping[1].mode = kMappingSwitchToggle;
 
   patch.footSwitchMapping[2] = {};
-  patch.footSwitchMapping[2].assignment.port = MidiPort::Din1,
-  patch.footSwitchMapping[2].assignment.type = DataType::ProgramChange,
+  patch.footSwitchMapping[2].parameter.port = MidiPort::Din1,
+  patch.footSwitchMapping[2].parameter.type = ParameterType::ProgramChange,
   patch.footSwitchMapping[2].initialValue = 73;
   patch.footSwitchMapping[2].minValue = 73;
   patch.footSwitchMapping[2].maxValue = 76;
   patch.footSwitchMapping[2].mode = kMappingSwitchToggle;
 
   patch.extControlMapping[0] = {};
-  patch.extControlMapping[0].assignment.port = MidiPort::Usb,
-  patch.extControlMapping[0].assignment.type = DataType::ControlChange,
-  patch.extControlMapping[0].assignment.controller = 11,
+  patch.extControlMapping[0].parameter.port = MidiPort::Usb,
+  patch.extControlMapping[0].parameter.type = ParameterType::ControlChange,
+  patch.extControlMapping[0].parameter.controller = 11,
   patch.extControlMapping[0].initialValue = 0;
   patch.extControlMapping[0].minValue = 0;
   patch.extControlMapping[0].maxValue = 127;
   patch.extControlMapping[0].mode = kMappingAnalog;
 
   patch.extControlMapping[1] = {};
-  patch.extControlMapping[1].assignment.port = MidiPort::Din1,
-  patch.extControlMapping[1].assignment.type = DataType::ControlChange,
-  patch.extControlMapping[1].assignment.controller = 16,
+  patch.extControlMapping[1].parameter.port = MidiPort::Din1,
+  patch.extControlMapping[1].parameter.type = ParameterType::ControlChange,
+  patch.extControlMapping[1].parameter.controller = 16,
   patch.extControlMapping[1].initialValue = 6;
   patch.extControlMapping[1].minValue = 6;
   patch.extControlMapping[1].maxValue = 64;
   patch.extControlMapping[1].mode = kMappingAnalog;
 
   patch.extControlMapping[2] = {};
-  patch.extControlMapping[2].assignment.port = MidiPort::Din1,
-  patch.extControlMapping[2].assignment.type = DataType::ControlChange,
-  patch.extControlMapping[2].assignment.controller = 48,
+  patch.extControlMapping[2].parameter.port = MidiPort::Din1,
+  patch.extControlMapping[2].parameter.type = ParameterType::ControlChange,
+  patch.extControlMapping[2].parameter.controller = 48,
   patch.extControlMapping[2].initialValue = 0;
   patch.extControlMapping[2].minValue = 0;
   patch.extControlMapping[2].maxValue = 127;
   patch.extControlMapping[2].mode = kMappingAnalog;
 
   patch.extControlMapping[3] = {};
-  patch.extControlMapping[3].assignment.port = MidiPort::Usb,
-  patch.extControlMapping[3].assignment.type = DataType::ControlChange,
-  patch.extControlMapping[3].assignment.controller = 83,
+  patch.extControlMapping[3].parameter.port = MidiPort::Usb,
+  patch.extControlMapping[3].parameter.type = ParameterType::ControlChange,
+  patch.extControlMapping[3].parameter.controller = 83,
   patch.extControlMapping[3].initialValue = 0;
   patch.extControlMapping[3].minValue = 0;
   patch.extControlMapping[3].maxValue = 127;
   patch.extControlMapping[3].mode = kMappingSwitchToggle;
 
-  patch.scopeCount = 1;
-  patch.presetScopes[0].assignmentCount = 2;
-  patch.presetScopes[0].assignments[0].port = MidiPort::Din1;
-  patch.presetScopes[0].assignments[0].type = DataType::ControlChange;
-  patch.presetScopes[0].assignments[0].controller = 5;
-  patch.presetScopes[0].assignments[1].port = MidiPort::Din1;
-  patch.presetScopes[0].assignments[1].type = DataType::NonRegisteredParameter;
-  patch.presetScopes[0].assignments[1].nrpnLsb = 73;
-  patch.presetScopes[0].presetCount = 2;
-  patch.presetScopes[0].presets[0].values[0] = 0;
-  patch.presetScopes[0].presets[0].values[1] = 0;
-  patch.presetScopes[0].presets[1].values[0] = 48;
-  patch.presetScopes[0].presets[1].values[1] = 2;
+  patch.presetGroupCount = 1;
+  patch.presetGroups[0].parameterCount = 2;
+  patch.presetGroups[0].parameters[0].port = MidiPort::Din1;
+  patch.presetGroups[0].parameters[0].type = ParameterType::ControlChange;
+  patch.presetGroups[0].parameters[0].controller = 5;
+  patch.presetGroups[0].parameters[1].port = MidiPort::Din1;
+  patch.presetGroups[0].parameters[1].type = ParameterType::NonRegisteredParameter;
+  patch.presetGroups[0].parameters[1].nrpnLsb = 73;
+  patch.presetGroups[0].presetCount = 2;
+  patch.presetGroups[0].presets[0].values[0] = 0;
+  patch.presetGroups[0].presets[0].values[1] = 0;
+  patch.presetGroups[0].presets[1].values[0] = 48;
+  patch.presetGroups[0].presets[1].values[1] = 2;
 
   initialiseControllers();
 }
 
-bool controlsMatch(const DataAssignment& a1, const DataAssignment& a2)
+bool parametersMatch(const Parameter& p1, const Parameter& p2)
 {
   return
-    a1.port == a2.port &&
-    a1.channel == a2.channel &&
-    a1.is14Bit == a2.is14Bit &&
-    a1.type == a2.type &&
-    a1.controller == a2.controller &&
-    a1.controllerMsb == a2.controllerMsb;
+    p1.port == p2.port &&
+    p1.channel == p2.channel &&
+    p1.is14Bit == p2.is14Bit &&
+    p1.type == p2.type &&
+    p1.controller == p2.controller &&
+    p1.controllerMsb == p2.controllerMsb;
 }
 
 void updateControllerLed(Mapping& mapping, ControllerState& state, Colour& led)
 {
-  if (!controlsMatch(mapping.assignment, state.assignment))
+  if (!parametersMatch(mapping.parameter, state.parameter))
   {
     return;
   }
-  auto val = state.assignment.is14Bit ? state.value >> 7 : state.value;
+  auto val = state.parameter.is14Bit ? state.value >> 7 : state.value;
   switch (mapping.mode) {
     case kMappingSwitchZoneUp:
     case kMappingSwitchZoneDown:
@@ -444,11 +445,11 @@ bool extControlMappedCorrectly(int index)
 
 void updateControllerLeds()
 {
-  for (int i = 0; i < kFootSwitchCount; i++)
+  for (int i = 0; i < FootSwitchCount; i++)
   {
     leds[kLedFootSwitchMap[i]] = { 0, 0, 0 };
   }
-  for (int i = 0; i < kExtControlCount; i++)
+  for (int i = 0; i < ExternalControlCount; i++)
   {
     if (extSensors[i].down())
     {
@@ -471,11 +472,11 @@ void updateControllerLeds()
   }
   for (int c = 0; c < controllerCount; c++)
   {
-    for (int i = 0; i < kFootSwitchCount; i++)
+    for (int i = 0; i < FootSwitchCount; i++)
     {
       updateControllerLed(patch.footSwitchMapping[i], controllers[c], leds[kLedFootSwitchMap[i]]);
     }
-    for (int i = 0; i < kExtControlCount; i++)
+    for (int i = 0; i < ExternalControlCount; i++)
     {
       if (extSensors[i].down() && extControlMapped(i) && extControlMappedCorrectly(i))
       {
@@ -546,11 +547,11 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
   {
     return;
   }
-  auto& state = *controllerState(mapping.assignment);
+  auto& state = *controllerState(mapping.parameter);
   if (mapping.mode == kMappingSwitchMomentary)
   {
     state.value = down ? mapping.maxValue : mapping.minValue;
-    setValue(state.assignment, state.value);
+    setValue(state.parameter, state.value);
     return;
   }
   if (!down)
@@ -637,7 +638,7 @@ void updateButtonControllerValue(Mapping& mapping, bool down)
         break;
       }
   }
-  setValue(state.assignment, state.value);
+  setValue(state.parameter, state.value);
 }
 
 void updateAnalogControllerValue(Mapping& mapping, int value)
@@ -646,9 +647,9 @@ void updateAnalogControllerValue(Mapping& mapping, int value)
   {
     return;
   }
-  auto& state = *controllerState(mapping.assignment);
+  auto& state = *controllerState(mapping.parameter);
   state.value = min(max(mapping.minValue, value * (mapping.maxValue - mapping.minValue + 1) / 128 + mapping.minValue), mapping.maxValue);
-  setValue(state.assignment, state.value);
+  setValue(state.parameter, state.value);
 }
 
 void setFootSwitchDown(int index, bool down)
@@ -722,11 +723,11 @@ void updateExtControl(int index)
 
 void updateInputs()
 {
-  for (int i = 0; i < kFootSwitchCount; i++)
+  for (int i = 0; i < FootSwitchCount; i++)
   {
     updateFootSwitch(i);
   }
-  for (int i = 0; i < kExtControlCount; i++)
+  for (int i = 0; i < ExternalControlCount; i++)
   {
     updateExtControl(i);
   }
